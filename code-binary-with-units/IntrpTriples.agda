@@ -6,9 +6,10 @@ open import Formulae
 open import SeqCalc
 open import Cut
 open import Mip
+open import VarCondition
 
 _⊩_ : ∀ {A C} → (n n' : MIP A C) → Set
-_⊩_ (intrp D₁ g₁ h₁) (intrp D₂ g₂ h₂) =
+_⊩_ (intrp D₁ g₁ h₁ vg₁ vh₁) (intrp D₂ g₂ h₂ vg₂ vh₂) =
   Σ (D₁ ⊢ D₂) λ t → (cut g₁ t ≗ g₂) × (h₁ ≗ cut t h₂)
 
 data _~_ {A C : Fma} : MIP A C → MIP A C → Set where
@@ -70,13 +71,17 @@ cutaxA-right : ∀ {A C} (f : A ⊢ C) → cut f ax ≗ f
 cutaxA-right f = refl
 
 g~ : ∀ {A C D} {g g' : A ⊢ D} {h : D ⊢ C}
+  → {vg vg' : ∀ {X} → X ∈F D → X ∈F A}
+  → {vh vh' : ∀ {X} → X ∈F D → X ∈F C}
   → g ≗ g'
-  → intrp D g h ~ intrp D g' h
+  → intrp D g h vg vh ~ intrp D g' h vg' vh'
 g~ {g = g} {h = h} p =
   ↝∷ (ax , (cutaxA-right g ∙ p) , (~ cutaxA-left h)) refl
 
 h~ : ∀ {A C D} {g : A ⊢ D} {h h' : D ⊢ C}
+  → {vg vg' : ∀ {X} → X ∈F D → X ∈F A}
+  → {vh vh' : ∀ {X} → X ∈F D → X ∈F C}
   → h ≗ h'
-  → intrp D g h ~ intrp D g h'
+  → intrp D g h vg vh ~ intrp D g h' vg' vh'
 h~ {g = g} {h' = h'} p =
   ↝∷ (ax , cutaxA-right g , (p ∙ (~ cutaxA-left h'))) refl

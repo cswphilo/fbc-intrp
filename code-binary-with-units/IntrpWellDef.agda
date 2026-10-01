@@ -1,6 +1,7 @@
 module IntrpWellDef where
 
 open import Data.Product
+open import Data.Sum using (inj₁; inj₂) renaming ([_,_]′ to elim⊎)
 open import Formulae
 open import SeqCalc
 open import Cut
@@ -10,31 +11,31 @@ open import Mip
 open import IntrpTriples
 
 ∧l₁~' : ∀ {A B C} → MIP A C → MIP (A ∧ B) C
-∧l₁~' {B = B} (intrp D g h) = intrp D (∧l₁ {B = B} g) h
+∧l₁~' {B = B} (intrp D g h vg vh) = intrp D (∧l₁ {B = B} g) h (λ m → inj₁ (vg m)) vh
 
 ∧l₁~ : ∀ {A B C} {n n' : MIP A C}
   → n ~ n'
   → ∧l₁~' {B = B} n ~ ∧l₁~' n'
 ∧l₁~ refl = refl
-∧l₁~ (↝∷ {n = intrp D g h} (t , eqg , eqh) p) =
+∧l₁~ (↝∷ {n = intrp D g h vg vh} (t , eqg , eqh) p) =
   ↝∷ (t , (cut∧l₁≗ g t ∙ ∧l₁ eqg) , eqh) (∧l₁~ p)
-∧l₁~ (↜∷ {n' = intrp D g h} (t , eqg , eqh) p) =
+∧l₁~ (↜∷ {n' = intrp D g h vg vh} (t , eqg , eqh) p) =
   ↜∷ (t , (cut∧l₁≗ g t ∙ ∧l₁ eqg) , eqh) (∧l₁~ p)
 
 ∧l₂~' : ∀ {A B C} → MIP B C → MIP (A ∧ B) C
-∧l₂~' {A = A} (intrp D g h) = intrp D (∧l₂ {A = A} g) h
+∧l₂~' {A = A} (intrp D g h vg vh) = intrp D (∧l₂ {A = A} g) h (λ m → inj₂ (vg m)) vh
 
 ∧l₂~ : ∀ {A B C} {n n' : MIP B C}
   → n ~ n'
   → ∧l₂~' {A = A} n ~ ∧l₂~' n'
 ∧l₂~ refl = refl
-∧l₂~ (↝∷ {n = intrp D g h} (t , eqg , eqh) p) =
+∧l₂~ (↝∷ {n = intrp D g h vg vh} (t , eqg , eqh) p) =
   ↝∷ (t , (cut∧l₂≗ g t ∙ ∧l₂ eqg) , eqh) (∧l₂~ p)
-∧l₂~ (↜∷ {n' = intrp D g h} (t , eqg , eqh) p) =
+∧l₂~ (↜∷ {n' = intrp D g h vg vh} (t , eqg , eqh) p) =
   ↜∷ (t , (cut∧l₂≗ g t ∙ ∧l₂ eqg) , eqh) (∧l₂~ p)
 
 ∨r₁~' : ∀ {S A B} → MIP S A → MIP S (A ∨ B)
-∨r₁~' {B = B} (intrp D g h) = intrp D g (∨r₁ {B = B} h)
+∨r₁~' {B = B} (intrp D g h vg vh) = intrp D g (∨r₁ {B = B} h) vg (λ m → inj₁ (vh m))
 
 ∨r₁~ : ∀ {S A B} {n n' : MIP S A}
   → n ~ n'
@@ -46,7 +47,7 @@ open import IntrpTriples
   ↜∷ (t , eqg , ∨r₁ eqh) (∨r₁~ p)
 
 ∨r₂~' : ∀ {S A B} → MIP S B → MIP S (A ∨ B)
-∨r₂~' {A = A} (intrp D g h) = intrp D g (∨r₂ {A = A} h)
+∨r₂~' {A = A} (intrp D g h vg vh) = intrp D g (∨r₂ {A = A} h) vg (λ m → inj₂ (vh m))
 
 ∨r₂~ : ∀ {S A B} {n n' : MIP S B}
   → n ~ n'
@@ -58,17 +59,19 @@ open import IntrpTriples
   ↜∷ (t , eqg , ∨r₂ eqh) (∨r₂~ p)
 
 ∧r~' : ∀ {S A B} → MIP S A → MIP S B → MIP S (A ∧ B)
-∧r~' (intrp D g h) (intrp D' g' h') =
+∧r~' (intrp D g h vg vh) (intrp D' g' h' vg' vh') =
   intrp (D ∧ D') (∧r g g') (∧r (∧l₁ h) (∧l₂ h'))
+    (λ m → elim⊎ vg vg' m)
+    (λ m → elim⊎ (λ p → inj₁ (vh p)) (λ p → inj₂ (vh' p)) m)
 
 ∧r~ : ∀ {S A B}
   {n n' : MIP S A} {m m' : MIP S B}
   → n ~ n' → m ~ m'
   → ∧r~' n m ~ ∧r~' n' m'
 ∧r~ refl refl = refl
-∧r~ {n = intrp D g h}
+∧r~ {n = intrp D g h vg vh}
   refl
-  (↝∷ {n = intrp E k l} {n' = intrp E' k' l'}
+  (↝∷ {n = intrp E k l vk vl} {n' = intrp E' k' l' vk' vl'}
     (t , eqg , eqh) p) =
   ↝∷
     ( ∧r (∧l₁ ax) (∧l₂ t)
@@ -78,9 +81,9 @@ open import IntrpTriples
         (∧l₂ eqh ∙ (~ cut∧l₂≗ t l'))
     )
     (∧r~ refl p)
-∧r~ {n = intrp D g h}
+∧r~ {n = intrp D g h vg vh}
   refl
-  (↜∷ {n = intrp E' k' l'} {n' = intrp E k l}
+  (↜∷ {n = intrp E' k' l' vk' vl'} {n' = intrp E k l vk vl}
     (t , eqg , eqh) p) =
   ↜∷
     ( ∧r (∧l₁ ax) (∧l₂ t)
@@ -90,8 +93,8 @@ open import IntrpTriples
         (∧l₂ eqh ∙ (~ cut∧l₂≗ t l'))
     )
     (∧r~ refl p)
-∧r~ {m = intrp E k l}
-  (↝∷ {n = intrp D g h} {n' = intrp D' g' h'}
+∧r~ {m = intrp E k l vk vl}
+  (↝∷ {n = intrp D g h vg vh} {n' = intrp D' g' h' vg' vh'}
     (t , eqg , eqh) p)
   q =
   ↝∷
@@ -102,8 +105,8 @@ open import IntrpTriples
         (~ (cut∧l₂≗ ax l ∙ ∧l₂ (cutaxA-left l)))
     )
     (∧r~ p q)
-∧r~ {m = intrp E k l}
-  (↜∷ {n = intrp D' g' h'} {n' = intrp D g h}
+∧r~ {m = intrp E k l vk vl}
+  (↜∷ {n = intrp D' g' h' vg' vh'} {n' = intrp D g h vg vh}
     (t , eqg , eqh) p)
   q =
   ↜∷
@@ -116,17 +119,19 @@ open import IntrpTriples
     (∧r~ p q)
 
 ∨l~' : ∀ {A B C} → MIP A C → MIP B C → MIP (A ∨ B) C
-∨l~' (intrp D g h) (intrp D' g' h') =
+∨l~' (intrp D g h vg vh) (intrp D' g' h' vg' vh') =
   intrp (D ∨ D') (∨l (∨r₁ g) (∨r₂ g')) (∨l h h')
+    (λ m → elim⊎ (λ p → inj₁ (vg p)) (λ p → inj₂ (vg' p)) m)
+    (λ m → elim⊎ vh vh' m)
 
 ∨l~ : ∀ {A B C}
   {n n' : MIP A C} {m m' : MIP B C}
   → n ~ n' → m ~ m'
   → ∨l~' n m ~ ∨l~' n' m'
 ∨l~ refl refl = refl
-∨l~ {n = intrp D g h}
+∨l~ {n = intrp D g h vg vh}
   refl
-  (↝∷ {n = intrp E k l} {n' = intrp E' k' l'}
+  (↝∷ {n = intrp E k l vk vl} {n' = intrp E' k' l' vk' vl'}
     (t , eqg , eqh) p) =
   ↝∷
     ( ∨l (∨r₁ ax) (∨r₂ t)
@@ -134,9 +139,9 @@ open import IntrpTriples
     , ∨l (~ cutaxA-left h) eqh
     )
     (∨l~ refl p)
-∨l~ {n = intrp D g h}
+∨l~ {n = intrp D g h vg vh}
   refl
-  (↜∷ {n = intrp E' k' l'} {n' = intrp E k l}
+  (↜∷ {n = intrp E' k' l' vk' vl'} {n' = intrp E k l vk vl}
     (t , eqg , eqh) p) =
   ↜∷
     ( ∨l (∨r₁ ax) (∨r₂ t)
@@ -144,8 +149,8 @@ open import IntrpTriples
     , ∨l (~ cutaxA-left h) eqh
     )
     (∨l~ refl p)
-∨l~ {m = intrp E k l}
-  (↝∷ {n = intrp D g h} {n' = intrp D' g' h'}
+∨l~ {m = intrp E k l vk vl}
+  (↝∷ {n = intrp D g h vg vh} {n' = intrp D' g' h' vg' vh'}
     (t , eqg , eqh) p)
   q =
   ↝∷
@@ -154,8 +159,8 @@ open import IntrpTriples
     , ∨l eqh (~ cutaxA-left l)
     )
     (∨l~ p q)
-∨l~ {m = intrp E k l}
-  (↜∷ {n = intrp D' g' h'} {n' = intrp D g h}
+∨l~ {m = intrp E k l vk vl}
+  (↜∷ {n = intrp D' g' h' vg' vh'} {n' = intrp D g h vg vh}
     (t , eqg , eqh) p)
   q =
   ↜∷
@@ -177,15 +182,15 @@ mip≗ (∧l₂ p) = ∧l₂~ (mip≗ p)
 mip≗ (∨r₁ p) = ∨r₁~ (mip≗ p)
 mip≗ (∨r₂ p) = ∨r₂~ (mip≗ p)
 mip≗ (∨l p p') = ∨l~ (mip≗ p) (mip≗ p')
-mip≗ ax∧ = ~-trans (g~ ax∧) (h~ ax∧)
-mip≗ ax∨ = ~-trans (g~ ax∨) (h~ ax∨)
+mip≗ ax∧ = ~-trans (g~ {vg' = λ m → m} {vh' = λ m → m} ax∧) (h~ ax∧)
+mip≗ ax∨ = ~-trans (g~ {vg' = λ m → m} {vh' = λ m → m} ax∨) (h~ ax∨)
 mip≗ ∧r∧l₁ = g~ ∧r∧l₁
 mip≗ ∧r∧l₂ = g~ ∧r∧l₂
 mip≗ (∧r∨l {f = f} {f' = f'} {g = g} {g' = g'}) =
-  let intrp D₁ g₁ h₁ = mip f
-      intrp D₂ g₂ h₂ = mip f'
-      intrp D₃ g₃ h₃ = mip g
-      intrp D₄ g₄ h₄ = mip g'
+  let intrp D₁ g₁ h₁ vg₁ vh₁ = mip f
+      intrp D₂ g₂ h₂ vg₂ vh₂ = mip f'
+      intrp D₃ g₃ h₃ vg₃ vh₃ = mip g
+      intrp D₄ g₄ h₄ vg₄ vh₄ = mip g'
   in ↜∷ (
         ∨l (∧r (∨r₁ (∧l₁ ax)) (∨r₁ (∧l₂ ax)))
            (∧r (∨r₂ (∧l₁ ax)) (∨r₂ (∧l₂ ax))) , 
@@ -202,8 +207,8 @@ mip≗ ∨r₂∧l₁ = refl
 mip≗ ∨r₂∧l₂ = refl
 mip≗ ∨r₂∨l = h~ ∨r₂∨l
 mip≗ (⊤rf {f = f}) =
-  let intrp D g h = mip f
+  let intrp D g h vg vh = mip f
   in ↝∷ (⊤r , refl , ⊤rf) refl
 mip≗ (⊥lf {f = f}) = 
-  let intrp D g h = mip f
+  let intrp D g h vg vh = mip f
   in ↜∷ (g , cutaxA-left g , (~ ⊥lf)) refl

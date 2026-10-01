@@ -1,11 +1,13 @@
 module IntrpCut where
 
 open import Data.Product
+open import Data.Sum using (inj₁; inj₂)
 open import Formulae 
 open import SeqCalc
 open import Cut
 open import CutProperties
 open import Mip
+open import VarCondition
 open import CutIntrp
 open import IntrpTriples
 open import IntrpWellDef
@@ -15,10 +17,10 @@ postulate cut-cong₁ : ∀ {A B C} → {f f' : A ⊢ B} (g : B ⊢ C) → (p : 
 
 cut-mip-left : ∀ {A B C}
   → (f : A ⊢ B) (g : B ⊢ C)
-  → let intrp D l k = mip f
+  → let intrp D l k vl vk = mip f
     in cut l (cut k g) ≗ cut f g
 cut-mip-left f g = 
-  let intrp D l k = mip f
+  let intrp D l k vl vk = mip f
   in (~ cut-assoc l k g) ∙ cut-cong₁ g (cut-intrp f)
 -- cut-mip-left f ax = cut-intrp f
 -- cut-mip-left f ⊤r = refl
@@ -81,10 +83,10 @@ cut-mip-left f g =
 
 cut-mip-right : ∀ {A B C}
   → (f : A ⊢ B) (g : B ⊢ C)
-  → let intrp D l k = mip g
+  → let intrp D l k vl vk = mip g
     in cut (cut f l) k ≗ cut f g
 cut-mip-right f g =
-  let intrp D l k = mip g
+  let intrp D l k vl vk = mip g
   in cut-assoc f l k ∙ cut-cong₂ f (cut-intrp g)
 -- cut-mip-right f ax = refl
 -- cut-mip-right f ⊤r = refl
@@ -139,246 +141,196 @@ cut-mip-right f g =
 --   ∨l (cut-mip-right f (∨l g g₁))
 --      (cut-mip-right f₁ (∨l g g₁))
 
-intrp-cut-witness : ∀ {A C}
-  → (n : MIP A C)
-  → Σ (A ⊢ C) λ f → (f ≗ cut (n .MIP.g) (n .MIP.h)) × (n ~ mip f)
-intrp-cut-witness (intrp D h ax) =
-  let intrp E l k = mip h
+intrp-cut-witness' : ∀ {A C} (D : Fma)
+  → (h : A ⊢ D) (g : D ⊢ C)
+  → (vg : ∀ {X} → X ∈F D → X ∈F A)
+  → (vh : ∀ {X} → X ∈F D → X ∈F C)
+  → Σ (A ⊢ C) λ f → (f ≗ cut h g) × (intrp D h g vg vh ~ mip f)
+intrp-cut-witness' D h ax vg vh =
+  let intrp E l k vl vk = mip h
   in h , refl ,
-     ↜∷ {n = intrp D h ax} {n' = intrp E l k}
+     ↜∷ {n' = intrp E l k vl vk}
        (k , cut-intrp h , refl) refl
-intrp-cut-witness (intrp D h ⊤r) =
+intrp-cut-witness' D h ⊤r vg vh =
   ⊤r , refl , ↝∷ (⊤r , refl , refl) refl
-intrp-cut-witness (intrp ⊥ ax ⊥l) = ⊥l , refl , refl
-intrp-cut-witness (intrp ⊥ ⊥l ⊥l) = ⊥l , refl , g~ (~ ⊥lf)
-intrp-cut-witness (intrp ⊥ (∧l₁ h) ⊥l) =
-  let f , eq , p = intrp-cut-witness (intrp ⊥ h ⊥l)
-  in ∧l₁ f , ∧l₁ eq , ∧l₁~ p
-intrp-cut-witness (intrp ⊥ (∧l₂ h) ⊥l) =
-  let f , eq , p = intrp-cut-witness (intrp ⊥ h ⊥l)
-  in ∧l₂ f , ∧l₂ eq , ∧l₂~ p
-intrp-cut-witness (intrp ⊥ (∨l h h₁) ⊥l) =
-  let f , eq , p = intrp-cut-witness (intrp ⊥ h ⊥l)
-      f₁ , eq₁ , p₁ = intrp-cut-witness (intrp ⊥ h₁ ⊥l)
+intrp-cut-witness' ⊥ ax ⊥l vg vh = ⊥l , refl , g~ refl
+intrp-cut-witness' ⊥ ⊥l ⊥l vg vh = ⊥l , refl , g~ (~ ⊥lf)
+intrp-cut-witness' ⊥ (∧l₁ h) ⊥l vg vh =
+  let f , eq , p = intrp-cut-witness' ⊥ h ⊥l (λ ()) (λ ())
+  in ∧l₁ f , ∧l₁ eq , ~-trans (g~ refl) (∧l₁~ p)
+intrp-cut-witness' ⊥ (∧l₂ h) ⊥l vg vh =
+  let f , eq , p = intrp-cut-witness' ⊥ h ⊥l (λ ()) (λ ())
+  in ∧l₂ f , ∧l₂ eq , ~-trans (g~ refl) (∧l₂~ p)
+intrp-cut-witness' ⊥ (∨l h h₁) ⊥l vg vh =
+  let f , eq , p = intrp-cut-witness' ⊥ h ⊥l (λ ()) (λ ())
+      f₁ , eq₁ , p₁ = intrp-cut-witness' ⊥ h₁ ⊥l (λ ()) (λ ())
   in ∨l f f₁ , ∨l eq eq₁ ,
-     ↜∷ {n' = ∨l~' (intrp ⊥ h ⊥l) (intrp ⊥ h₁ ⊥l)}
+     ↜∷ {n' = ∨l~' (intrp ⊥ h ⊥l (λ ()) (λ ())) (intrp ⊥ h₁ ⊥l (λ ()) (λ ()))}
        (∨l ax ax , refl , refl) (∨l~ p p₁)
 
-intrp-cut-witness (intrp D h (∧r g g₁)) =
-  let intrp E l k = mip h
-      intrp F n m = mip (cut k g)
-      intrp F₁ n₁ m₁ = mip (cut k g₁)
-      f , eq , p = intrp-cut-witness (intrp F (cut l n) m)
-      f₁ , eq₁ , p₁ = intrp-cut-witness (intrp F₁ (cut l n₁) m₁)
+intrp-cut-witness' D h (∧r g g₁) vg vh =
+  let intrp E l k vl vk = mip h
+      intrp F n m vn vm = mip (cut k g)
+      intrp F₁ n₁ m₁ vn₁ vm₁ = mip (cut k g₁)
+      f , eq , p = intrp-cut-witness' F (cut l n) m (λ q → vl (vn q)) vm
+      f₁ , eq₁ , p₁ = intrp-cut-witness' F₁ (cut l n₁) m₁ (λ q → vl (vn₁ q)) vm₁
   in ∧r f f₁
    , ∧r
        (eq ∙ cut-mip-right l (cut k g) ∙ cut-mip-left h g)
        (eq₁ ∙ cut-mip-right l (cut k g₁) ∙ cut-mip-left h g₁)
-   , ↜∷ {n' = intrp E l (cut k (∧r g g₁))}
+   , ↜∷ {n' = intrp E l (cut k (∧r g g₁)) vl (λ q → vh (vk q))}
        (k , cut-intrp h , refl)
        (↝∷
-         {n' = ∧r~' (intrp E l (cut k g)) (intrp E l (cut k g₁))}
-         ( ∧r ax ax
+         {n' = ∧r~' (intrp F (cut l n) m (λ q → vl (vn q)) vm)
+                    (intrp F₁ (cut l n₁) m₁ (λ q → vl (vn₁ q)) vm₁)}
+         ( ∧r n n₁
          , refl
-         , ∧r (~ cutaxA-left (cut k g)) (~ cutaxA-left (cut k g₁))
-         )
-         (∧r~
-           (↝∷
-             {n' = intrp F (cut l n) m}
-             (n , refl , ~ cut-intrp (cut k g))
-             p)
-           (↝∷
-             {n' = intrp F₁ (cut l n₁) m₁}
-             (n₁ , refl , ~ cut-intrp (cut k g₁))
-             p₁)))
-
-{-
-Previous conjunction-right proof:
-
-intrp-cut-witness (intrp D h (∧r g g₁)) =
-  let intrp E l k = mip h
-      f , eq , p = intrp-cut-witness (intrp E l (cut k g))
-      f₁ , eq₁ , p₁ = intrp-cut-witness (intrp E l (cut k g₁))
-  in ∧r f f₁
-   , ∧r (eq ∙ cut-mip-left h g) (eq₁ ∙ cut-mip-left h g₁)
-   , ↜∷ {n' = intrp E l (cut k (∧r g g₁))}
-       (k , cut-intrp h , refl)
-       (↝∷
-         {n' = ∧r~' (intrp E l (cut k g)) (intrp E l (cut k g₁))}
-         ( ∧r ax ax
-         , refl
-         , ∧r (~ cutaxA-left (cut k g)) (~ cutaxA-left (cut k g₁))
+         , ∧r (~ cut-intrp (cut k g)) (~ cut-intrp (cut k g₁))
          )
          (∧r~ p p₁))
 
-This proof type-checks, but its recursive calls do not necessarily satisfy
-the variable condition.  The formula E is suitable between A and the whole
-target B ∧ C.  The recursive calls change that target to B and C separately.
-A variable of E may occur only in C, so it is then absent from B; or it may
-occur only in B, so it is absent from C.  The revised proof first applies mip
-to cut k g and cut k g₁, obtaining F and F₁ for the separate targets.
-
-For example, take
-
-  A = D = (` X ∧ ` Y),  B = ` X,  C = ` Y,
-  h = ax,  g = ∧l₁ ax,  g₁ = ∧l₂ ax.
-
-Then mip h has middle formula E = ` X ∧ ` Y.  For the whole target
-` X ∧ ` Y this is valid.  In the first recursive call the target is only
-` X, so ` Y is missing from the target.  In the second recursive call the
-target is only ` Y, so ` X is missing from the target.
--}
-
-intrp-cut-witness (intrp D ax (∧l₁ {B = B} g)) =
-  let intrp E l k = mip g
+intrp-cut-witness' D ax (∧l₁ {B = B} g) vg vh =
+  let intrp E l k vl vk = mip g
   in ∧l₁ g , refl , ↝∷ (∧l₁ l , refl , ∧l₁ (~ cut-intrp g) ∙ (~ cut∧l₁≗ l k)) refl
-  -- ∧l₁ g , refl ,
-  --    ↝∷ {n' = intrp E l k}
-  --      (l , ~ cut-intrp (∧l₁ g) , cutaxA-left l) refl
-intrp-cut-witness (intrp D ⊥l (∧l₁ g)) =
+intrp-cut-witness' D ⊥l (∧l₁ g) vg vh =
   ⊥l , refl ,
-  ↜∷ {n' = intrp ⊥ ax ⊥l} (⊥l , refl , refl) refl
-intrp-cut-witness (intrp D (∧r h h₁) (∧l₁ g)) =
-  let f , eq , p = intrp-cut-witness (intrp _ h g)
+  ↜∷ {n' = intrp ⊥ ax ⊥l (λ ()) (λ ())} (⊥l , refl , refl) refl
+intrp-cut-witness' D (∧r h h₁) (∧l₁ g) vg vh =
+  let f , eq , p = intrp-cut-witness' _ h g (λ q → vg (inj₁ q)) (λ q → vh (inj₁ q))
   in f , eq ,
-     ↝∷ {n' = intrp _ h g}
+     ↝∷ {n' = intrp _ h g (λ q → vg (inj₁ q)) (λ q → vh (inj₁ q))}
        ( ∧l₁ ax
        , refl
        , ~ (cut∧l₁≗ ax g ∙ ∧l₁ (cutaxA-left g))
        ) p
-intrp-cut-witness (intrp D (∧l₁ h) (∧l₁ g)) =
-  let f , eq , p = intrp-cut-witness (intrp D h (∧l₁ g))
-  in ∧l₁ f , ∧l₁ eq , ∧l₁~ p
-intrp-cut-witness (intrp D (∧l₂ h) (∧l₁ g)) =
-  let f , eq , p = intrp-cut-witness (intrp D h (∧l₁ g))
-  in ∧l₂ f , ∧l₂ eq , ∧l₂~ p
-intrp-cut-witness (intrp D (∨l h h₁) (∧l₁ g)) =
-  let f , eq , p = intrp-cut-witness (intrp D h (∧l₁ g))
-      f₁ , eq₁ , p₁ = intrp-cut-witness (intrp D h₁ (∧l₁ g))
-  in ∨l f f₁ , ∨l eq eq₁ ,
-     ↜∷ {n' = ∨l~' (intrp D h (∧l₁ g)) (intrp D h₁ (∧l₁ g))}
-       (∨l ax ax , refl , refl) (∨l~ p p₁)
-intrp-cut-witness (intrp D ax (∧l₂ g)) =
-  let intrp E l k = mip (∧l₂ g)
+intrp-cut-witness' D (∧l₁ h) (∧l₁ g) vg vh =
+  let intrp E l k vl vk = mip h
+      f , eq , p = intrp-cut-witness' E l (cut k (∧l₁ g)) vl (λ q → vh (vk q))
+  in ∧l₁ f , ∧l₁ (eq ∙ cut-mip-left h (∧l₁ g)) ,
+     ↜∷ {n' = ∧l₁~' (intrp E l (cut k (∧l₁ g)) vl (λ q → vh (vk q)))}
+       (k , cut∧l₁≗ l k ∙ ∧l₁ (cut-intrp h) , refl) (∧l₁~ p)
+intrp-cut-witness' D (∧l₂ h) (∧l₁ g) vg vh =
+  let intrp E l k vl vk = mip h
+      f , eq , p = intrp-cut-witness' E l (cut k (∧l₁ g)) vl (λ q → vh (vk q))
+  in ∧l₂ f , ∧l₂ (eq ∙ cut-mip-left h (∧l₁ g)) ,
+     ↜∷ {n' = ∧l₂~' (intrp E l (cut k (∧l₁ g)) vl (λ q → vh (vk q)))}
+       (k , cut∧l₂≗ l k ∙ ∧l₂ (cut-intrp h) , refl) (∧l₂~ p)
+intrp-cut-witness' D (∨l h h₁) (∧l₁ g) vg vh =
+  let intrp E l k vl vk = mip h
+      intrp E₁ l₁ k₁ vl₁ vk₁ = mip h₁
+      f , eq , p = intrp-cut-witness' E l (cut k (∧l₁ g)) vl (λ q → vh (vk q))
+      f₁ , eq₁ , p₁ = intrp-cut-witness' E₁ l₁ (cut k₁ (∧l₁ g)) vl₁ (λ q → vh (vk₁ q))
+  in ∨l f f₁ , ∨l (eq ∙ cut-mip-left h (∧l₁ g)) (eq₁ ∙ cut-mip-left h₁ (∧l₁ g)) ,
+     ↜∷ {n' = ∨l~' (intrp E l (cut k (∧l₁ g)) vl (λ q → vh (vk q)))
+                    (intrp E₁ l₁ (cut k₁ (∧l₁ g)) vl₁ (λ q → vh (vk₁ q)))}
+       (∨l k k₁ , ∨l (cut-intrp h) (cut-intrp h₁) , ~ cut∨l≗ k k₁ (∧l₁ g)) (∨l~ p p₁)
+intrp-cut-witness' D ax (∧l₂ g) vg vh =
+  let intrp E l k vl vk = mip (∧l₂ g)
   in ∧l₂ g , refl ,
-     ↝∷ {n' = intrp E l k}
+     ↝∷ {n' = intrp E l k vl vk}
        (l , cutaxA-left l , ~ cut-intrp (∧l₂ g)) refl
-intrp-cut-witness (intrp D ⊥l (∧l₂ g)) =
+intrp-cut-witness' D ⊥l (∧l₂ g) vg vh =
   ⊥l , refl ,
-  ↜∷ {n' = intrp ⊥ ax ⊥l} (⊥l , refl , refl) refl
-intrp-cut-witness (intrp D (∧r h h₁) (∧l₂ g)) =
-  let f , eq , p = intrp-cut-witness (intrp _ h₁ g)
+  ↜∷ {n' = intrp ⊥ ax ⊥l (λ ()) (λ ())} (⊥l , refl , refl) refl
+intrp-cut-witness' D (∧r h h₁) (∧l₂ g) vg vh =
+  let f , eq , p = intrp-cut-witness' _ h₁ g (λ q → vg (inj₂ q)) (λ q → vh (inj₂ q))
   in f , eq ,
-     ↝∷ {n' = intrp _ h₁ g}
+     ↝∷ {n' = intrp _ h₁ g (λ q → vg (inj₂ q)) (λ q → vh (inj₂ q))}
        ( ∧l₂ ax
        , refl
        , ~ (cut∧l₂≗ ax g ∙ ∧l₂ (cutaxA-left g))
        ) p
-intrp-cut-witness (intrp D (∧l₁ h) (∧l₂ g)) =
-  let f , eq , p = intrp-cut-witness (intrp D h (∧l₂ g))
-  in ∧l₁ f , ∧l₁ eq , ∧l₁~ p
-intrp-cut-witness (intrp D (∧l₂ h) (∧l₂ g)) =
-  let f , eq , p = intrp-cut-witness (intrp D h (∧l₂ g))
-  in ∧l₂ f , ∧l₂ eq , ∧l₂~ p
-intrp-cut-witness (intrp D (∨l h h₁) (∧l₂ g)) =
-  let f , eq , p = intrp-cut-witness (intrp D h (∧l₂ g))
-      f₁ , eq₁ , p₁ = intrp-cut-witness (intrp D h₁ (∧l₂ g))
-  in ∨l f f₁ , ∨l eq eq₁ ,
-     ↜∷ {n' = ∨l~' (intrp D h (∧l₂ g)) (intrp D h₁ (∧l₂ g))}
-       (∨l ax ax , refl , refl) (∨l~ p p₁)
-intrp-cut-witness (intrp D h (∨r₁ g)) =
-  let f , eq , p = intrp-cut-witness (intrp D h g)
-  in ∨r₁ f , ∨r₁ eq , ∨r₁~ p
-intrp-cut-witness (intrp D h (∨r₂ g)) =
-  let f , eq , p = intrp-cut-witness (intrp D h g)
-  in ∨r₂ f , ∨r₂ eq , ∨r₂~ p
-intrp-cut-witness (intrp D ax (∨l g g₁)) =
-  let intrp E l k = mip (∨l g g₁)
+intrp-cut-witness' D (∧l₁ h) (∧l₂ g) vg vh =
+  let intrp E l k vl vk = mip h
+      f , eq , p = intrp-cut-witness' E l (cut k (∧l₂ g)) vl (λ q → vh (vk q))
+  in ∧l₁ f , ∧l₁ (eq ∙ cut-mip-left h (∧l₂ g)) ,
+     ↜∷ {n' = ∧l₁~' (intrp E l (cut k (∧l₂ g)) vl (λ q → vh (vk q)))}
+       (k , cut∧l₁≗ l k ∙ ∧l₁ (cut-intrp h) , refl) (∧l₁~ p)
+intrp-cut-witness' D (∧l₂ h) (∧l₂ g) vg vh =
+  let intrp E l k vl vk = mip h
+      f , eq , p = intrp-cut-witness' E l (cut k (∧l₂ g)) vl (λ q → vh (vk q))
+  in ∧l₂ f , ∧l₂ (eq ∙ cut-mip-left h (∧l₂ g)) ,
+     ↜∷ {n' = ∧l₂~' (intrp E l (cut k (∧l₂ g)) vl (λ q → vh (vk q)))}
+       (k , cut∧l₂≗ l k ∙ ∧l₂ (cut-intrp h) , refl) (∧l₂~ p)
+intrp-cut-witness' D (∨l h h₁) (∧l₂ g) vg vh =
+  let intrp E l k vl vk = mip h
+      intrp E₁ l₁ k₁ vl₁ vk₁ = mip h₁
+      f , eq , p = intrp-cut-witness' E l (cut k (∧l₂ g)) vl (λ q → vh (vk q))
+      f₁ , eq₁ , p₁ = intrp-cut-witness' E₁ l₁ (cut k₁ (∧l₂ g)) vl₁ (λ q → vh (vk₁ q))
+  in ∨l f f₁ , ∨l (eq ∙ cut-mip-left h (∧l₂ g)) (eq₁ ∙ cut-mip-left h₁ (∧l₂ g)) ,
+     ↜∷ {n' = ∨l~' (intrp E l (cut k (∧l₂ g)) vl (λ q → vh (vk q)))
+                    (intrp E₁ l₁ (cut k₁ (∧l₂ g)) vl₁ (λ q → vh (vk₁ q)))}
+       (∨l k k₁ , ∨l (cut-intrp h) (cut-intrp h₁) , ~ cut∨l≗ k k₁ (∧l₂ g)) (∨l~ p p₁)
+intrp-cut-witness' D h (∨r₁ g) vg vh =
+  let intrp E l k vl vk = mip g
+      f , eq , p = intrp-cut-witness' E (cut h l) k (λ q → vg (vl q)) vk
+  in ∨r₁ f , ∨r₁ (eq ∙ cut-mip-right h g) ,
+     ↝∷ {n' = ∨r₁~' (intrp E (cut h l) k (λ q → vg (vl q)) vk)}
+       (l , refl , ∨r₁ (~ cut-intrp g)) (∨r₁~ p)
+intrp-cut-witness' D h (∨r₂ g) vg vh =
+  let intrp E l k vl vk = mip g
+      f , eq , p = intrp-cut-witness' E (cut h l) k (λ q → vg (vl q)) vk
+  in ∨r₂ f , ∨r₂ (eq ∙ cut-mip-right h g) ,
+     ↝∷ {n' = ∨r₂~' (intrp E (cut h l) k (λ q → vg (vl q)) vk)}
+       (l , refl , ∨r₂ (~ cut-intrp g)) (∨r₂~ p)
+intrp-cut-witness' D ax (∨l g g₁) vg vh =
+  let intrp E l k vl vk = mip (∨l g g₁)
   in ∨l g g₁ , refl ,
-     ↝∷ {n' = intrp E l k}
+     ↝∷ {n' = intrp E l k vl vk}
        (l , cutaxA-left l , ~ cut-intrp (∨l g g₁)) refl
-intrp-cut-witness (intrp D ⊥l (∨l g g₁)) =
+intrp-cut-witness' D ⊥l (∨l g g₁) vg vh =
   ⊥l , refl ,
-  ↜∷ {n' = intrp ⊥ ax ⊥l} (⊥l , refl , refl) refl
-intrp-cut-witness (intrp D (∧l₁ h) (∨l g g₁)) =
-  let f , eq , p = intrp-cut-witness (intrp D h (∨l g g₁))
-  in ∧l₁ f , ∧l₁ eq , ∧l₁~ p
-intrp-cut-witness (intrp D (∧l₂ h) (∨l g g₁)) =
-  let f , eq , p = intrp-cut-witness (intrp D h (∨l g g₁))
-  in ∧l₂ f , ∧l₂ eq , ∧l₂~ p
-intrp-cut-witness (intrp D (∨r₁ h) (∨l g g₁)) =
-  let f , eq , p = intrp-cut-witness (intrp _ h g)
+  ↜∷ {n' = intrp ⊥ ax ⊥l (λ ()) (λ ())} (⊥l , refl , refl) refl
+intrp-cut-witness' D (∧l₁ h) (∨l g g₁) vg vh =
+  let intrp E l k vl vk = mip h
+      f , eq , p = intrp-cut-witness' E l (cut k (∨l g g₁)) vl (λ q → vh (vk q))
+  in ∧l₁ f , ∧l₁ (eq ∙ cut-mip-left h (∨l g g₁)) ,
+     ↜∷ {n' = ∧l₁~' (intrp E l (cut k (∨l g g₁)) vl (λ q → vh (vk q)))}
+       (k , cut∧l₁≗ l k ∙ ∧l₁ (cut-intrp h) , refl) (∧l₁~ p)
+intrp-cut-witness' D (∧l₂ h) (∨l g g₁) vg vh =
+  let intrp E l k vl vk = mip h
+      f , eq , p = intrp-cut-witness' E l (cut k (∨l g g₁)) vl (λ q → vh (vk q))
+  in ∧l₂ f , ∧l₂ (eq ∙ cut-mip-left h (∨l g g₁)) ,
+     ↜∷ {n' = ∧l₂~' (intrp E l (cut k (∨l g g₁)) vl (λ q → vh (vk q)))}
+       (k , cut∧l₂≗ l k ∙ ∧l₂ (cut-intrp h) , refl) (∧l₂~ p)
+intrp-cut-witness' D (∨r₁ h) (∨l g g₁) vg vh =
+  let f , eq , p = intrp-cut-witness' _ h g (λ q → vg (inj₁ q)) (λ q → vh (inj₁ q))
   in f , eq ,
-     ↜∷ {n' = intrp _ h g}
+     ↜∷ {n' = intrp _ h g (λ q → vg (inj₁ q)) (λ q → vh (inj₁ q))}
        (∨r₁ ax , refl , ~ cutaxA-left g) p
-intrp-cut-witness (intrp D (∨r₂ h) (∨l g g₁)) =
-  let f , eq , p = intrp-cut-witness (intrp _ h g₁)
+intrp-cut-witness' D (∨r₂ h) (∨l g g₁) vg vh =
+  let f , eq , p = intrp-cut-witness' _ h g₁ (λ q → vg (inj₂ q)) (λ q → vh (inj₂ q))
   in f , eq ,
-     ↜∷ {n' = intrp _ h g₁}
+     ↜∷ {n' = intrp _ h g₁ (λ q → vg (inj₂ q)) (λ q → vh (inj₂ q))}
        (∨r₂ ax , refl , ~ cutaxA-left g₁) p
 
-{-
-Previous disjunction-left proof:
-
-intrp-cut-witness (intrp D (∨l h h₁) (∨l g g₁)) =
-  let intrp E l k = mip (∨l g g₁)
-      f , eq , p = intrp-cut-witness (intrp E (cut h l) k)
-      f₁ , eq₁ , p₁ = intrp-cut-witness (intrp E (cut h₁ l) k)
-  in ∨l f f₁
-   , ∨l (eq ∙ cut-mip-right h (∨l g g₁))
-          (eq₁ ∙ cut-mip-right h₁ (∨l g g₁))
-   , ↝∷ {n' = intrp E (cut (∨l h h₁) l) k}
-       (l , refl , ~ cut-intrp (∨l g g₁))
-       (↜∷
-         {n' = ∨l~' (intrp E (cut h l) k) (intrp E (cut h₁ l) k)}
-         (∨l ax ax , refl , refl)
-         (∨l~ p p₁))
-
-This proof has the dual problem.  The formula E is suitable between the whole
-source A ∨ B and C.  The recursive calls change that source to A and B
-separately.  A variable of E may occur only in B, so it is then absent from A;
-or it may occur only in A, so it is absent from B.  The revised proof first
-applies mip to cut h l and cut h₁ l, obtaining F and F₁ for the separate
-sources.
-
-For example, take
-
-  A = ` X,  B = ` Y,  D = C = (` X ∨ ` Y),
-  h = ∨r₁ ax,  h₁ = ∨r₂ ax,
-  g = ∨r₁ ax,  g₁ = ∨r₂ ax.
-
-Then mip (∨l g g₁) has middle formula E = ` X ∨ ` Y.  For the whole source
-` X ∨ ` Y this is valid.  In the first recursive call the source is only
-` X, so ` Y is missing from the source.  In the second recursive call the
-source is only ` Y, so ` X is missing from the source.
--}
-
-intrp-cut-witness (intrp D (∨l h h₁) (∨l g g₁)) =
-  let intrp E l k = mip (∨l g g₁)
-      intrp F n m = mip (cut h l)
-      intrp F₁ n₁ m₁ = mip (cut h₁ l)
-      f , eq , p = intrp-cut-witness (intrp F n (cut m k))
-      f₁ , eq₁ , p₁ = intrp-cut-witness (intrp F₁ n₁ (cut m₁ k))
+intrp-cut-witness' D (∨l h h₁) (∨l g g₁) vg vh =
+  let intrp E l k vl vk = mip (∨l g g₁)
+      intrp F n m vn vm = mip (cut h l)
+      intrp F₁ n₁ m₁ vn₁ vm₁ = mip (cut h₁ l)
+      f , eq , p = intrp-cut-witness' F n (cut m k) vn (λ q → vk (vm q))
+      f₁ , eq₁ , p₁ = intrp-cut-witness' F₁ n₁ (cut m₁ k) vn₁ (λ q → vk (vm₁ q))
   in ∨l f f₁
    , ∨l
        (eq ∙ cut-mip-left (cut h l) k
            ∙ cut-mip-right h (∨l g g₁))
        (eq₁ ∙ cut-mip-left (cut h₁ l) k
             ∙ cut-mip-right h₁ (∨l g g₁))
-   , ↝∷ {n' = intrp E (cut (∨l h h₁) l) k}
+   , ↝∷ {n' = intrp E (cut (∨l h h₁) l) k (λ q → vg (vl q)) vk}
        (l , refl , ~ cut-intrp (∨l g g₁))
        (↜∷
-         {n' = ∨l~' (intrp E (cut h l) k) (intrp E (cut h₁ l) k)}
-         (∨l ax ax , refl , refl)
-         (∨l~
-           (↜∷
-             {n' = intrp F n (cut m k)}
-             (m , cut-intrp (cut h l) , refl)
-             p)
-           (↜∷
-             {n' = intrp F₁ n₁ (cut m₁ k)}
-             (m₁ , cut-intrp (cut h₁ l) , refl)
-             p₁)))
+         {n' = ∨l~' (intrp F n (cut m k) vn (λ q → vk (vm q)))
+                    (intrp F₁ n₁ (cut m₁ k) vn₁ (λ q → vk (vm₁ q)))}
+         ( ∨l m m₁
+         , ∨l (cut-intrp (cut h l)) (cut-intrp (cut h₁ l))
+         , ~ cut∨l≗ m m₁ k
+         )
+         (∨l~ p p₁))
+
+intrp-cut-witness : ∀ {A C}
+  → (n : MIP A C)
+  → Σ (A ⊢ C) λ f → (f ≗ cut (n .MIP.g) (n .MIP.h)) × (n ~ mip f)
+intrp-cut-witness (intrp D h g vg vh) = intrp-cut-witness' D h g vg vh
 
 intrp-cut : ∀ {A C}
   → (n : MIP A C)
